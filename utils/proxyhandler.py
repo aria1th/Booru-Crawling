@@ -61,6 +61,7 @@ class ProxyHandler:
                 proxy += f":{self.port}"
             if not proxy.endswith("/"):
                 proxy += "/"
+            self.proxy_list[i] = proxy
         self.proxy_index = -1
     def wait_until_commit(self, proxy_index=None):
         """
