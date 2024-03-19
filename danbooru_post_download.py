@@ -41,9 +41,9 @@ def download_post(post_dict, proxyhandler:ProxyHandler, pbar=None, no_split=Fals
         post_id = post_dict['id']
         ext = post_dict['file_ext']
         download_target = post_dict.get("large_file_url", post_dict.get("file_url"))
-        save_path = save_location +f"{post_id % 100} /"+ f"{post_id}.{ext}"
-        if not os.path.exists(save_location +f"{post_id % 100} /"):
-            os.makedirs(save_location +f"{post_id % 100} /")
+        save_path = save_location +f"{post_id % 100}/"+ f"{post_id}.{ext}"
+        if not os.path.exists(save_location +f"{post_id % 100}/"):
+            os.makedirs(save_location +f"{post_id % 100}/")
         # if url contains file extension, use that
         if download_target and "." in download_target:
             ext = download_target.split(".")[-1]
@@ -177,6 +177,11 @@ if __name__ == '__main__':
                     raise e
                 print(f"Error: {post}")
                 continue
+            # # optional filter, find "transparent" in tag_string
+            # if "transparent" not in post.get("tag_string", ""):
+            #     pbar_download.total -= 1
+            #     pbar_download.update(0)
+            #     continue
             futures.append(executor.submit(download_post, post, handler, pbar=pbar_download, no_split=args.no_split, save_location=save_dir,split_size=args.split_size, max_retry=args.max_retry))
         for future in as_completed(futures):
             try:
