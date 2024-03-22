@@ -8,6 +8,7 @@ import json
 handler = ProxyHandler(r"C:\projects\Booru-Crawling\ips.txt", wait_time=1.1, timeouts=20,proxy_auth="user:password_notdefault")
 handler.check()
 tag_handler = GelbooruTag(handler=handler, exception_handle=0)
+tag_handler.reorganize_and_reload()
 
 # if file exists, skip
 if os.path.exists(r"D:\danbooru\tagset.json"):
@@ -39,14 +40,21 @@ else:
     with open(r"D:\danbooru\tagset.json", "w") as f:
         json.dump(list(merged_bulk_string_set), f)
 print(f"Total tags: {len(merged_bulk_string_set)}")
-merged_bulk_string_set = list(merged_bulk_string_set)
+merged_bulk_string_set = list(set(merged_bulk_string_set))
+merged_bulk_string_list = []
+for tags in tqdm(merged_bulk_string_set):
+    if not tag_handler.tag_exists(tags):
+        merged_bulk_string_list.append(tags)
+print(f"Total tags: {len(merged_bulk_string_list)}")
+merged_bulk_string_set = merged_bulk_string_list
+
 # batch 20000 tags
 batch_size = 99
 pbar = tqdm(total=len(merged_bulk_string_set) // batch_size + 1, desc="Tags batch")
 
 def get_types_and_update_pbar(selected_tags):
     bulk_string = " ".join(selected_tags)
-    tag_handler.get_types(bulk_string, handler)
+    tag_handler.get_types(bulk_string, handler, max_retry=3)
     pbar.update(1)
     print(handler.get_average_time())
 

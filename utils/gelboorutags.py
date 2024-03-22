@@ -6,6 +6,7 @@ import html
 import logging
 import datetime
 from urllib.parse import quote
+from threading import Lock
 
 class GelbooruTag:
     """
@@ -29,6 +30,7 @@ class GelbooruTag:
         self.handler = handler
         self.exception_handle = exception_handle # if tag not found, what to do
         self.load()
+        self.filewrite_lock = Lock()
     def load(self):
         """
         Loads the tags
@@ -60,8 +62,9 @@ class GelbooruTag:
         """
         Saves the tag
         """
-        with open(self.file_name, 'a', encoding='utf-8') as f:
-            f.write(json.dumps(tag) + "\n")
+        with self.filewrite_lock:
+            with open(self.file_name, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(tag) + "\n")
     def get_missing_tags(self, tags_string):
         """
         Returns the missing tags (not locally stored)
@@ -73,11 +76,23 @@ class GelbooruTag:
                 continue
             tags.append(tag)
         return tags
-    def reorganize(self):
+    def reorganize(self, write_to_new_file=True):
         # writes down the tags into a new file
+        if not write_to_new_file:
+            with open(self.file_name, 'w', encoding='utf-8') as f:
+                for tag_values in self.tags.values():
+                    f.write(json.dumps(tag_values) + "\n")
+            return
         with open(self.file_name + "_new", 'w', encoding='utf-8') as f:
             for tag_values in self.tags.values():
                 f.write(json.dumps(tag_values) + "\n")
+    def reorganize_and_reload(self):
+        """
+        Reorganizes and reloads the tags
+        Useful for broken jsonl files
+        """
+        self.reorganize(write_to_new_file=False)
+        self.load()
     def get_tag(self, tag_name):
         """
         Returns the tag
@@ -228,7 +243,11 @@ class GelbooruTag:
                 print(f"Exception: {e} when getting tag {tag_name}, retrying {i}/{max_retry}")
                 pass
         print(f"Error: {tag_name} not found after {max_retry} retries")
-
+    def tag_exists(self, tag_name):
+        """
+        Returns if the tag exists
+        """
+        return tag_name in self.tags
 
 
 class GelbooruMetadata:
