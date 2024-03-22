@@ -358,18 +358,19 @@ def extract_and_parse_tags(post_dicts:List[str], tag_handler:GelbooruTag, proxyh
 
 def download_meta(post_dict, proxyhandler:ProxyHandler, pbar=None, no_split=False, save_location="G:/gelbooru2023/", split_size=1000000, max_retry=10, as_json=False, save_metadata=False):
     # check if image exists
-    image_ext = post_dict['file_ext'] if 'file_ext' in post_dict else post_dict["image"].split(".")[-1]
-    post_path = save_location +f"{post_dict['id'] % 100}/"+ f"{post_dict['id']}.{image_ext}"
-    if not os.path.exists(post_path):
-        if pbar is not None:
-            pbar.update(1)
-        return
+    # image_ext = post_dict['file_ext'] if 'file_ext' in post_dict else post_dict["image"].split(".")[-1]
+    # post_path = save_location +f"{post_dict['id'] % 100}/"+ f"{post_dict['id']}.{image_ext}"
+    # if not os.path.exists(post_path):
+    #     logging.error(f"Error: {post_dict['id']} has no image")
+    #     if pbar is not None:
+    #         pbar.update(1)
+    #     return
     post_id = post_dict['id']
     save_path = save_location +f"{post_id % 100}/"+ f"{post_id}.json" if as_json else save_location +f"{post_id % 100}/"+ f"{post_id}.txt"
     if not os.path.exists(save_location +f"{post_id % 100}/"):
         os.makedirs(save_location +f"{post_id % 100}/")
     if os.path.exists(save_path) and os.path.getsize(save_path) != 0:
-        #logging.info(f"Skipped {post_id}")
+        logging.info(f"Skipped {post_id} because metadata exists in {save_path}")
         pbar.update(1)
         return
     parsed_dict = GelbooruMetadata(**post_dict).structured_dict(tag_handler, proxyhandler, max_retry=max_retry)
@@ -567,10 +568,10 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description='Downloads the posts from gelbooru')
     parser.add_argument('--start_id', type=int, help='The start id', default=0)
-    parser.add_argument('--end_id', type=int, help='The end id', default=9510199)
-    parser.add_argument('--file_dir', type=str, help='The file directory', default="D:/danbooru/post_gelbooru_0_6M")
-    parser.add_argument('--save_location', type=str, help='The save location', default="D:/gelbooru2023_0-6M/")
-    parser.add_argument('--proxy_list_file', type=str, help='The proxy list file', default="D:/danbooru/ips.txt")
+    parser.add_argument('--end_id', type=int, help='The end id', default=9794205)
+    parser.add_argument('--file_dir', type=str, help='The file directory', default=r"D:\danbooru\post_gelbooru")
+    parser.add_argument('--save_location', type=str, help='The save location', default=r"D:\danbooru\gelbooru-results")
+    parser.add_argument('--proxy_list_file', type=str, help='The proxy list file', default=r"C:\projects\Booru-Crawling\ips.txt")
     parser.add_argument('--proxy_auth', type=str, help='The proxy auth', default="user:password_notdefault")
     parser.add_argument('--no_split', action='store_true', help='Try downloading file at single chunk, unsafe')
     parser.add_argument('--split_size', type=int, help='The split size', default=1000000) # about 1MB
@@ -603,8 +604,8 @@ if __name__ == '__main__':
                 continue
             #download_meta(post, proxyhandler, pbar=pbar, no_split=False, save_location=save_location,split_size=1000000, save_metadata=True, as_json=True)
             #download_post(post, proxyhandler, pbar=pbar, no_split=False, save_location=save_location,split_size=1000000)
-            futures += [executor.submit(download_post, post, proxyhandler, pbar=pbar, no_split=args.no_split, save_location=save_location,split_size=args.split_size, save_metadata=args.save_metadata, as_json=args.as_json)]
-            #futures += [executor.submit(download_meta, post, proxyhandler, pbar=pbar, no_split=False, save_location=save_location,split_size=1000000, save_metadata=True, as_json=True)]
+            #futures += [executor.submit(download_post, post, proxyhandler, pbar=pbar, no_split=args.no_split, save_location=save_location,split_size=args.split_size, save_metadata=args.save_metadata, as_json=args.as_json)]
+            futures += [executor.submit(download_meta, post, proxyhandler, pbar=pbar, no_split=False, save_location=save_location,split_size=1000000, save_metadata=True, as_json=True)] # this is for metadata
         for future in futures:
             try:
                 future.result()

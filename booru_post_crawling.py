@@ -11,7 +11,7 @@ PER_REQUEST_POSTS = 100
 post_ids = set()
 
 @cache
-def split_query(start:int, end:int, mode:str="danbooru") -> List[str]:
+def split_query(start:int, end:int, mode:str="danbooru", danbooru_url:str=None, api_key:str=None, username:str=None) -> List[str]:
     """
     Returns the list of queries to be made
     """
@@ -23,17 +23,19 @@ def split_query(start:int, end:int, mode:str="danbooru") -> List[str]:
         if i in post_ids:
             skipped += 1
             continue
-        lists.append(get_query_bulk(i) if mode == "danbooru" else get_query_bulk_gelbooru(i))
+        lists.append(get_query_bulk(i, danbooru_url, api_key=api_key, username=username) if mode == "danbooru" else get_query_bulk_gelbooru(i))
     print(f"Skipped {skipped} queries")
     return lists
 
-def get_query_bulk(index: int) -> str:
+def get_query_bulk(index: int, danbooru_url:str, api_key:str=None, username:str=None) -> str:
     """
     Returns the query link that contains the index
     """
     start_idx = index - index % PER_REQUEST_POSTS
     end_idx = start_idx + PER_REQUEST_POSTS - 1
-    query = rf"https://danbooru.donmai.us/posts.json?tags=id%3A{start_idx}..{end_idx}&limit={PER_REQUEST_POSTS}"
+    query = rf"https://{danbooru_url}/posts.json?tags=id%3A{start_idx}..{end_idx}"
+    if api_key and username:
+        query += f"&login={username}&api_key={api_key}"
     return query
 
 def get_query_bulk_gelbooru(index: int) -> str:
@@ -138,15 +140,19 @@ if __name__ == '__main__':
     parser.add_argument('--post_save_dir', type=str, help='The post save directory')
     parser.add_argument('--ips', type=str, help='The ips file', default="ips.txt")
     parser.add_argument('--proxy_auth', type=str, help='The proxy auth', default="user:password_notdefault")
-    parser.add_argument('--wait_time', type=float, help='The wait time', default=1)
+    parser.add_argument('--wait_time', type=float, help='The wait time', default=1) # can be 0.1 for danbooru
     parser.add_argument('--timeouts', type=int, help='The timeouts', default=15)
     parser.add_argument('--port', type=int, help='The port', default=80)
     parser.add_argument('--mode', type=str, help='The mode', default="danbooru")
+    parser.add_argument('--danbooru_url', type=str, help='The url for danbooru, you can change it for danbooru-compatible databases', default="danbooru.donmai.us")
+    # api_key and username for danbooru
+    parser.add_argument('--api_key', type=str, help='The api key for danbooru', default=None)
+    parser.add_argument('--username', type=str, help='The username for danbooru', default=None)
     args = parser.parse_args()
     handler = ProxyHandler(args.ips, port=args.port, wait_time=args.wait_time, timeouts=args.timeouts, proxy_auth=args.proxy_auth)
     handler.check()
     print(f"Proxy Handler Checked, total {len(handler.proxy_list)} proxies")
     post_dir = args.post_save_dir
-    query_list = split_query(args.start_id, args.end_id, mode=args.mode)
+    query_list = split_query(args.start_id, args.end_id, mode=args.mode, danbooru_url=args.danbooru_url, api_key=args.api_key, username=args.username)
     get_posts_threaded(query_list, post_save_dir=post_dir, mode=args.mode)
     print("Done")

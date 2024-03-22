@@ -2,6 +2,7 @@
 Proxy Handler Class
 """
 import json
+from queue import Queue
 import time
 import urllib.parse
 import threading
@@ -51,6 +52,7 @@ class ProxyHandler:
         self.timeouts = timeouts
         self.wait_time = wait_time
         self.lock = threading.Lock()
+        self.last_logged_activities = Queue(maxsize=100)
         with open(proxy_list_file, 'r', encoding='utf-8') as f:
             for line in f:
                 self.proxy_list.append(line.strip())
@@ -63,6 +65,22 @@ class ProxyHandler:
                 proxy += "/"
             self.proxy_list[i] = proxy
         self.proxy_index = -1
+    def log_time(self):
+        """
+        Logs the time
+        """
+        self.last_logged_activities.put(time.time())
+        if self.last_logged_activities.full():
+            # empty oldest
+            self.last_logged_activities.get()
+    def get_average_time(self):
+        """
+        Returns the average time
+        """
+        # get oldest and newest to get the average time
+        if len(self.last_logged_activities.queue) > 1:
+            return (self.last_logged_activities.queue[-1] - self.last_logged_activities.queue[0]) / self.last_logged_activities.qsize()
+        return 0
     def wait_until_commit(self, proxy_index=None):
         """
         Waits until the commit time
@@ -89,6 +107,7 @@ class ProxyHandler:
         try:
             index = self._update_proxy_index()
             self.wait_until_commit(index)
+            self.log_time()
             response = requests.get(self.proxy_list[index] + f"get_response?url={url}", timeout=self.timeouts, auth=tuple(self.proxy_auth.split(":")))
             if response.status_code == 200:
                 json_response = response.json()
@@ -186,6 +205,8 @@ class ProxyHandler:
                     del self.proxy_list[i]
                 if len(self.proxy_list) == 0:
                     raise Exception("No proxies available")
+        else:
+            print(f"All {len(self.proxy_list)} proxies are working")
 
 class SingleProxyHandler(ProxyHandler):
     """
