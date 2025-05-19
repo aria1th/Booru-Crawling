@@ -1,50 +1,69 @@
 """
 Proxy Handler Class
 """
+
 import json
-from queue import Queue
 import time
 import urllib.parse
 import threading
 import requests
 
+
 class ThreadSafeDict(dict):
     """
     Thread safe dict
     """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.lock = threading.Lock()
+
     def __getitem__(self, key):
         with self.lock:
             return super().__getitem__(key)
+
     def __setitem__(self, key, value):
         with self.lock:
             return super().__setitem__(key, value)
+
     def __delitem__(self, key):
         with self.lock:
             return super().__delitem__(key)
+
     def __contains__(self, key):
         with self.lock:
             return super().__contains__(key)
+
     def __len__(self):
         with self.lock:
             return super().__len__()
+
     def __iter__(self):
         with self.lock:
             return super().__iter__()
+
     def __repr__(self):
         with self.lock:
             return super().__repr__()
+
     def __str__(self):
         with self.lock:
             return super().__str__()
 
+
 class ProxyHandler:
     """
-    Sends request to http://{ip}:{port}/get_response_raw?url={url} with auth 
+    Sends request to http://{ip}:{port}/get_response_raw?url={url} with auth
     """
-    def __init__(self, proxy_list_file,proxy_auth="user:pass",port=80, wait_time=0.1,timeouts=10):
+
+    def __init__(
+        self,
+        proxy_list_file,
+        proxy_auth="user:pass",
+        port=80,
+        wait_time=0.1,
+        timeouts=10,
+    ):
         self.proxy_auth = proxy_auth
         self.port = port
         self.proxy_list = []
@@ -52,35 +71,21 @@ class ProxyHandler:
         self.timeouts = timeouts
         self.wait_time = wait_time
         self.lock = threading.Lock()
-        self.last_logged_activities = Queue(maxsize=100)
-        with open(proxy_list_file, 'r', encoding='utf-8') as f:
+        with open(proxy_list_file, "r", encoding="utf-8") as f:
             for line in f:
                 self.proxy_list.append(line.strip())
         for i, proxy in enumerate(self.proxy_list):
+            print(f"Proxy {i}: {proxy}")
             if not proxy.startswith("http"):
                 proxy = "http://" + proxy
+                print(f"Fixed proxy {i}: {proxy}")
             if ":" not in proxy:
                 proxy += f":{self.port}"
             if not proxy.endswith("/"):
                 proxy += "/"
             self.proxy_list[i] = proxy
         self.proxy_index = -1
-    def log_time(self):
-        """
-        Logs the time
-        """
-        self.last_logged_activities.put(time.time())
-        if self.last_logged_activities.full():
-            # empty oldest
-            self.last_logged_activities.get()
-    def get_average_time(self):
-        """
-        Returns the average time
-        """
-        # get oldest and newest to get the average time
-        if len(self.last_logged_activities.queue) > 1:
-            return (self.last_logged_activities.queue[-1] - self.last_logged_activities.queue[0]) / self.last_logged_activities.qsize()
-        return 0
+
     def wait_until_commit(self, proxy_index=None):
         """
         Waits until the commit time
@@ -92,6 +97,7 @@ class ProxyHandler:
         while time.time() < self.commit_time[proxy_index] + self.wait_time:
             time.sleep(0.01)
         self.commit_time[proxy_index] = time.time()
+
     def _update_proxy_index(self):
         """
         Updates the proxy index
@@ -99,16 +105,20 @@ class ProxyHandler:
         with self.lock:
             self.proxy_index = (self.proxy_index + 1) % len(self.proxy_list)
             return self.proxy_index
+
     def get_response(self, url):
         """
         Returns the response of the url
         """
-        url = urllib.parse.quote(url, safe='')
+        url = urllib.parse.quote(url, safe="")
         try:
             index = self._update_proxy_index()
             self.wait_until_commit(index)
-            self.log_time()
-            response = requests.get(self.proxy_list[index] + f"get_response?url={url}", timeout=self.timeouts, auth=tuple(self.proxy_auth.split(":")))
+            response = requests.get(
+                self.proxy_list[index] + f"get_response?url={url}",
+                timeout=self.timeouts,
+                auth=tuple(self.proxy_auth.split(":")),
+            )
             if response.status_code == 200:
                 json_response = response.json()
                 if json_response["success"]:
@@ -116,7 +126,9 @@ class ProxyHandler:
                 else:
                     if "429" in json_response["response"]:
                         self.commit_time[index] = time.time() + self.timeouts
-                        print(f"Error: {json_response['response']}, waiting {self.timeouts} seconds")
+                        print(
+                            f"Error: {json_response['response']}, waiting {self.timeouts} seconds"
+                        )
                     print(f"Failed in proxy side: {json_response['response']}")
                     return None
             elif response.status_code == 429:
@@ -128,32 +140,43 @@ class ProxyHandler:
         except Exception as e:
             print(f"Error while processing response from proxy: {e}")
             return None
+
     def get(self, url):
         """
         Returns the response of the url
         """
-        url = urllib.parse.quote(url, safe='')
+        url = urllib.parse.quote(url, safe="")
         try:
             index = self._update_proxy_index()
             self.wait_until_commit(index)
-            response = requests.get(self.proxy_list[index] + f"get_response_raw?url={url}", timeout=self.timeouts, auth=tuple(self.proxy_auth.split(":")))
-            if response.status_code == 200:
+            response = requests.get(
+                self.proxy_list[index] + f"get_response_raw?url={url}",
+                timeout=self.timeouts,
+                auth=tuple(self.proxy_auth.split(":")),
+            )
+            if response.status_code in [200, 206]:
                 return response
             else:
                 print(f"Error: {response.status_code}")
                 return None
         except Exception as e:
             print(f"Exception: {e}")
+            print(f"Link: {self.proxy_list[index]}get_response_raw?url={url}")
             return None
+
     def filesize(self, url):
         """
         Returns the filesize of the url
         """
-        url = urllib.parse.quote(url, safe='')
+        url = urllib.parse.quote(url, safe="")
         try:
             index = self._update_proxy_index()
             self.wait_until_commit(index)
-            response = requests.get(self.proxy_list[index] + f"file_size?url={url}", timeout=self.timeouts, auth=tuple(self.proxy_auth.split(":")))
+            response = requests.get(
+                self.proxy_list[index] + f"file_size?url={url}",
+                timeout=self.timeouts,
+                auth=tuple(self.proxy_auth.split(":")),
+            )
             if response.status_code == 200:
                 return int(response.text)
             else:
@@ -162,16 +185,21 @@ class ProxyHandler:
         except Exception as e:
             print(f"Exception: {e}")
             return None
+
     def get_filepart(self, url, start, end):
         """
         Returns the response of the url with range
         """
-        url = urllib.parse.quote(url, safe='')
+        url = urllib.parse.quote(url, safe="")
         try:
             index = self._update_proxy_index()
             self.wait_until_commit(index)
-            response = requests.get(self.proxy_list[index] + f"filepart?url={url}&start={start}&end={end}", timeout=self.timeouts, auth=tuple(self.proxy_auth.split(":")))
-            if response.status_code == 200:
+            response = requests.get(
+                self.proxy_list[index] + f"filepart?url={url}&start={start}&end={end}",
+                timeout=self.timeouts,
+                auth=tuple(self.proxy_auth.split(":")),
+            )
+            if response.status_code in [200, 206]:
                 return response
             else:
                 print(f"Error: {response.status_code}")
@@ -179,14 +207,17 @@ class ProxyHandler:
         except Exception as e:
             print(f"Exception: {e}")
             return None
-    def check(self,raise_exception=False):
+
+    def check(self, raise_exception=False):
         """
         Checks if the proxies are working
         """
         failed_proxies = []
         for i, proxy in enumerate(self.proxy_list):
             try:
-                response = requests.get(proxy, auth=tuple(self.proxy_auth.split(":")), timeout=2)
+                response = requests.get(
+                    proxy, auth=tuple(self.proxy_auth.split(":")), timeout=2
+                )
                 if response.status_code == 200:
                     continue
                 else:
@@ -199,20 +230,24 @@ class ProxyHandler:
             if raise_exception:
                 raise Exception(f"Proxies {failed_proxies} are not working")
             else:
-                print(f"Proxies {failed_proxies} are not working, total {len(failed_proxies)} proxies of {len(self.proxy_list)} are not working")
+                print(
+                    f"Proxies {failed_proxies} are not working, total {len(failed_proxies)} proxies of {len(self.proxy_list)} are not working"
+                )
                 # remove failed proxies
                 for i in failed_proxies[::-1]:
                     del self.proxy_list[i]
                 if len(self.proxy_list) == 0:
                     raise Exception("No proxies available")
-        else:
-            print(f"All {len(self.proxy_list)} proxies are working")
+
 
 class SingleProxyHandler(ProxyHandler):
     """
     Sends request to http://{ip}:{port}/get_response_raw?url={url} with auth
     """
-    def __init__(self, proxy_url, proxy_auth="user:pass",port=80, wait_time=0.1,timeouts=10):
+
+    def __init__(
+        self, proxy_url, proxy_auth="user:pass", port=80, wait_time=0.1, timeouts=10
+    ):
         self.proxy_auth = proxy_auth
         self.port = port
         self.proxy_list = [proxy_url]
