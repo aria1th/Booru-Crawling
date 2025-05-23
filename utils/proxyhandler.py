@@ -71,6 +71,9 @@ class ProxyHandler:
         self.timeouts = timeouts
         self.wait_time = wait_time
         self.lock = threading.Lock()
+        self.time_lock = threading.Lock()
+        self.total_time = 0.0
+        self.total_requests = 0
         with open(proxy_list_file, "r", encoding="utf-8") as f:
             for line in f:
                 self.proxy_list.append(line.strip())
@@ -85,6 +88,19 @@ class ProxyHandler:
                 proxy += "/"
             self.proxy_list[i] = proxy
         self.proxy_index = -1
+
+    def _record_request_time(self, start_time):
+        """Record the time spent for a single request."""
+        with self.time_lock:
+            self.total_time += time.time() - start_time
+            self.total_requests += 1
+
+    def get_average_time(self):
+        """Return the average response time of requests handled."""
+        with self.time_lock:
+            if self.total_requests == 0:
+                return None
+            return self.total_time / self.total_requests
 
     def wait_until_commit(self, proxy_index=None):
         """
@@ -111,6 +127,7 @@ class ProxyHandler:
         Returns the response of the url
         """
         url = urllib.parse.quote(url, safe="")
+        start_time = time.time()
         try:
             index = self._update_proxy_index()
             self.wait_until_commit(index)
@@ -140,12 +157,15 @@ class ProxyHandler:
         except Exception as e:
             print(f"Error while processing response from proxy: {e}")
             return None
+        finally:
+            self._record_request_time(start_time)
 
     def get(self, url):
         """
         Returns the response of the url
         """
         url = urllib.parse.quote(url, safe="")
+        start_time = time.time()
         try:
             index = self._update_proxy_index()
             self.wait_until_commit(index)
@@ -163,12 +183,15 @@ class ProxyHandler:
             print(f"Exception: {e}")
             print(f"Link: {self.proxy_list[index]}get_response_raw?url={url}")
             return None
+        finally:
+            self._record_request_time(start_time)
 
     def filesize(self, url):
         """
         Returns the filesize of the url
         """
         url = urllib.parse.quote(url, safe="")
+        start_time = time.time()
         try:
             index = self._update_proxy_index()
             self.wait_until_commit(index)
@@ -185,12 +208,15 @@ class ProxyHandler:
         except Exception as e:
             print(f"Exception: {e}")
             return None
+        finally:
+            self._record_request_time(start_time)
 
     def get_filepart(self, url, start, end):
         """
         Returns the response of the url with range
         """
         url = urllib.parse.quote(url, safe="")
+        start_time = time.time()
         try:
             index = self._update_proxy_index()
             self.wait_until_commit(index)
@@ -207,6 +233,8 @@ class ProxyHandler:
         except Exception as e:
             print(f"Exception: {e}")
             return None
+        finally:
+            self._record_request_time(start_time)
 
     def check(self, raise_exception=False):
         """
@@ -256,3 +284,7 @@ class SingleProxyHandler(ProxyHandler):
         self.timeouts = timeouts
         self.wait_time = wait_time
         self.lock = threading.Lock()
+        self.time_lock = threading.Lock()
+        self.total_time = 0.0
+        self.total_requests = 0
+
