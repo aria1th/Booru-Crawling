@@ -452,6 +452,7 @@ def download_post(post_dict, proxyhandler:ProxyHandler, pbar=None, no_split=Fals
                 pbar.update(1)
             return
     if no_split:
+        file_response = None
         for i in range(max_retry):
             try:
                 file_response = proxyhandler.get(download_target)
@@ -464,8 +465,9 @@ def download_post(post_dict, proxyhandler:ProxyHandler, pbar=None, no_split=Fals
                     raise e
                 print(f"Exception: {e} when downloading {post_id}, retrying {i}/{max_retry}")
                 pass
-        if file_response is None or file_response.status_code != 200:
-            print(f"Error: {post_id}, {file_response.status_code}")
+        if not file_response or file_response.status_code != 200:
+            status = file_response.status_code if file_response else None
+            print(f"Error: {post_id}, {status}")
             if pbar is not None:
                 pbar.update(1)
             return
@@ -503,6 +505,7 @@ def download_post(post_dict, proxyhandler:ProxyHandler, pbar=None, no_split=Fals
                 else:
                     print(f"Error: {post_id} had different file size when downloading {data[0]}-{data[1]}, expected {data[1] - data[0]}, got {os.path.getsize(save_path + f'.{_i}')} when downloading")
                     os.remove(save_path + f".{_i}")
+            file_response = None
             for i in range(max_retry):
                 try:
                     file_response = proxyhandler.get_filepart(download_target, data[0], data[1] - 1)
@@ -520,8 +523,9 @@ def download_post(post_dict, proxyhandler:ProxyHandler, pbar=None, no_split=Fals
                     if isinstance(e, KeyboardInterrupt):
                         raise e
                     print(f"Exception: {e} when downloading {post_id} {data[0]}-{data[1]}, retrying {i}/{max_retry}")
-            if file_response is None or file_response.status_code != 200:
-                print(f"Error: {post_id}, {file_response.status_code}")
+            if not file_response or file_response.status_code != 200:
+                status = file_response.status_code if file_response else None
+                print(f"Error: {post_id}, {status}")
                 if pbar is not None:
                     pbar.update(1)
                 return
